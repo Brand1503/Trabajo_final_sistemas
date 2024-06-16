@@ -162,6 +162,6 @@ void loop() {
     }
 
     display.display();
-    delay(500); // Wait for a half second before updating the display
+    delay(5); // puedo controlar la velocidad de la rueda esto debo cambiar con el teclado
 }
 
