@@ -148,15 +148,15 @@ void loop() {
     // Draw the wheel image in the left half
     switch (rueda) {
         case 0:
-            display.drawBitmap(0, (SCREEN_HEIGHT - LOGO_HEIGHT) / 2, epd_bitmap_wheel1, LOGO_WIDTH, LOGO_HEIGHT, SSD1306_WHITE);
+            display.drawBitmap(7, (SCREEN_HEIGHT - LOGO_HEIGHT) / 2, epd_bitmap_wheel1, LOGO_WIDTH, LOGO_HEIGHT, SSD1306_WHITE);
             rueda = 1;
             break;
         case 1:
-            display.drawBitmap(0, (SCREEN_HEIGHT - LOGO_HEIGHT) / 2, epd_bitmap_wheel2, LOGO_WIDTH, LOGO_HEIGHT, SSD1306_WHITE);
+            display.drawBitmap(7, (SCREEN_HEIGHT - LOGO_HEIGHT) / 2, epd_bitmap_wheel2, LOGO_WIDTH, LOGO_HEIGHT, SSD1306_WHITE);
             rueda = 2;
             break;
         case 2:
-            display.drawBitmap(0, (SCREEN_HEIGHT - LOGO_HEIGHT) / 2, epd_bitmap_wheel3, LOGO_WIDTH, LOGO_HEIGHT, SSD1306_WHITE);
+            display.drawBitmap(7, (SCREEN_HEIGHT - LOGO_HEIGHT) / 2, epd_bitmap_wheel3, LOGO_WIDTH, LOGO_HEIGHT, SSD1306_WHITE);
             rueda = 0;
             break;
     }
@@ -164,3 +164,4 @@ void loop() {
     display.display();
     delay(500); // Wait for a half second before updating the display
 }
+
