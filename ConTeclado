@@ -7,6 +7,8 @@
 
 int ruedaDelay;
 
+TickType_t velocidadDelay;
+
 #define SCREEN_WIDTH 128    // OLED display width, in pixels
 #define SCREEN_HEIGHT 64    // OLED display height, in pixels
 #define OLED_RESET -1       // Reset pin # (or -1 if sharing Arduino reset pin)
@@ -18,38 +20,67 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 void TaskSecuenciaLeds(void *pvParameters);
 void TaskRueda(void *pvParameters);
 void TaskVelocidad(void *pvParameters);
+void TaskVelocidadLed(void *pvParameters);
+
 
 void setup()
 {
+  Serial.begin(115200);
 
-  xTaskCreate(
+  // Initial delay value
+  velocidadDelay = 300 / portTICK_PERIOD_MS;
+
+  // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
+  {
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;)
+      ; // Don't proceed, loop forever
+  }
+
+  xTaskCreatePinnedToCore(
       TaskRueda
       , "Rueda"
       ,4096
       ,NULL// Stack siz,
       ,4
       ,NULL // Priority
-      );
+      ,0);
 
   // Now the task scheduler, which takes over control of scheduling individual tasks, is automatically started.
-  xTaskCreate(
-      TaskSecuenciaLeds
-      , "mi secuencia leds"
-      , 1024 // Stack size
-      ,NULL
-      , 3 // Priority
-      ,NULL);
+  xTaskCreatePinnedToCore(
+      TaskSecuenciaLeds,
+      "mi secuencia leds",
+      1024, // Stack size
+      NULL,
+      3, // Priority
+      NULL,
+      0
+  );
+
+  xTaskCreatePinnedToCore(
+      TaskVelocidadLed,
+      "Velocidad Leds",
+      4096,
+      NULL,
+      6,
+      NULL,
+      0
+  );
   // Now the task scheduler, which takes over control of scheduling individual tasks, is automatically started.
 
-  xTaskCreate(
+  xTaskCreatePinnedToCore(
     TaskVelocidad
     ,"Velocidad Rueda"
     ,4096
     ,NULL
     ,5
     ,NULL
+    ,1
   );
 }
+
+  
 
 void loop()
 {
@@ -60,56 +91,53 @@ void loop()
 /*---------------------- Tasks ---------------------*/
 /*--------------------------------------------------*/
 
-void TaskSecuenciaLeds(void *pvParameters)
-{
+void TaskSecuenciaLeds(void *pvParameters) {
   (void)pvParameters;
-  int retardo = 50;
   int posicion = 0;
   int leds[] = {19, 18, 5, 17, 16, 4};
   int k;
 
-  for (k = 0; k < 6; ++k)
-  {
+  for (k = 0; k < 6; ++k) {
     pinMode(leds[k], OUTPUT);
   }
-  digitalWrite(leds[posicion], HIGH);
-  digitalWrite(leds[posicion + 1], HIGH);
-  while (1)
-  {
-    for (k = 0; k < 2; ++k)
-    {
+
+  while (1) {
+    for (k = 0; k < 2; ++k) {
       digitalWrite(leds[posicion], HIGH);
       digitalWrite(leds[posicion + 1], HIGH);
-      vTaskDelay(retardo);
+      vTaskDelay(velocidadDelay);
       digitalWrite(leds[posicion], LOW);
       digitalWrite(leds[posicion + 1], HIGH);
-      vTaskDelay(retardo);
+      vTaskDelay(velocidadDelay);
       digitalWrite(leds[posicion], HIGH);
       digitalWrite(leds[posicion + 1], LOW);
-      vTaskDelay(retardo);
+      vTaskDelay(velocidadDelay);
       digitalWrite(leds[posicion], LOW);
       digitalWrite(leds[posicion + 1], LOW);
     }
     posicion++;
-    if (posicion > 4)
+    if (posicion > 4) {
       posicion = 0;
-    vTaskDelay(200);
+    }
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+  }
+}
+
+void TaskVelocidadLed(void *pvParameters) {
+  (void) pvParameters;
+  int sensorValue;
+  
+  for(;;) {
+    sensorValue = analogRead(39);
+    velocidadDelay = (sensorValue * 3 + 100) / portTICK_PERIOD_MS;
+    vTaskDelay(50 / portTICK_PERIOD_MS);
   }
 }
 
 void TaskRueda(void *pvParameters)
 {
   (void)pvParameters;
-  Serial.begin(9600);
-  // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
-  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
-  {
-    Serial.println(F("SSD1306 allocation failed"));
-    for (;;)
-      ; // Don't proceed, loop forever
-  }
-
-
+  
   uint8_t rueda = 0;
   // 'wheel1', 50x50px
   const unsigned char epd_bitmap_wheel1[] PROGMEM = {
