@@ -52,7 +52,7 @@ if ( xSemaforo_Pantalla == NULL )  // Confirma que el semáforo del puerto seria
       TaskRueda
       , "Rueda"
       ,4096
-      ,NULL// Stack siz,
+      ,NULL // Stack siz
       ,3
       ,NULL // Priority
       ,1);
@@ -61,9 +61,9 @@ if ( xSemaforo_Pantalla == NULL )  // Confirma que el semáforo del puerto seria
     ,"Cuadrado"
     , 4096
     ,NULL
-    ,6
+    ,4
     ,NULL
-    ,0);
+    ,1);
 
 }
 
@@ -185,7 +185,7 @@ void TaskRueda(void *pvParameters __attribute__((unused)) )
 
   while (1)
   {
-    if ( xSemaphoreTake( xSemaforo_Pantalla, ( TickType_t ) 200 ) == pdTRUE )
+    if ( xSemaphoreTake( xSemaforo_Pantalla, ( TickType_t ) 100 ) == pdTRUE )
     {
     // Draw the wheel image in the left half
     switch (rueda)
@@ -203,12 +203,12 @@ void TaskRueda(void *pvParameters __attribute__((unused)) )
       rueda = 0;
       break;
     }
-    display.display();
+    display.display(); 
     
-  xSemaphoreGive( xSemaforo_Pantalla);
+    xSemaphoreGive( xSemaforo_Pantalla);
   }
+  
   vTaskDelay(ruedaDelay); // puedo controlar la velocidad de la rueda esto debo cambiar con el teclado
-
 }
 }
 void TaskCuadrado(void *pvParameters __attribute__((unused)) ){
@@ -222,7 +222,7 @@ void TaskCuadrado(void *pvParameters __attribute__((unused)) ){
   
   (void)pvParameters;
 
-  if ( xSemaphoreTake(xSemaforo_Pantalla, ( TickType_t ) 200 ) == pdTRUE )
+  if ( xSemaphoreTake(xSemaforo_Pantalla, ( TickType_t ) 100 ) == pdTRUE )
     {
   while (1)
   {
