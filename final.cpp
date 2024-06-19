@@ -423,11 +423,11 @@ void TaskBluetooth(void *pvParameters) {
           vTaskResume(id_TaskVelocidadLedHandle);
           vTaskResume(id_TaskCuadradoHandle);
           break;
-        case 'a':
+        case 'i':
         // Mover hacia la izquierda
         x--;
         break;
-       case 'b':
+       case 'a':
         // Mover hacia arriba
         y--;
         break;
@@ -435,7 +435,7 @@ void TaskBluetooth(void *pvParameters) {
         // Mover hacia la derecha
         x++;
         break;
-       case 'i':
+       case 'b':
         // Mover hacia abajo
         y++;
         break;
