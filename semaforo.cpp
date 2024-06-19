@@ -9,7 +9,7 @@
 // Se utiliza para garantizar que solo una Tarea acceda a este recurso en cualquier momento.
 SemaphoreHandle_t xSemaforo_Pantalla;
 
-int ruedaDelay = 10; 
+int ruedaDelay = 5; 
 
 TickType_t velocidadDelay;
 
@@ -29,20 +29,17 @@ void setup()
 {
   Serial.begin(115200);
 
-  display.clearDisplay();
+// Inicializa la pantalla
+    display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+    display.clearDisplay();
 
-    // Draw the frame
-    int midScreen = SCREEN_WIDTH / 2;
-    display.drawRect(0, 0, midScreen, SCREEN_HEIGHT, SSD1306_WHITE);         // Left half
-    display.drawRect(midScreen, 0, midScreen, SCREEN_HEIGHT, SSD1306_WHITE); // Right half
+    // Dibuja el marco de la pantalla
+    int midScreen = SCREEN_WIDTH / 2; // Calcula el punto medio horizontal de la pantalla
+    display.drawRect(0, 0, midScreen, SCREEN_HEIGHT, SSD1306_WHITE);         // Dibuja el lado izquierdo
+    display.drawRect(midScreen, 0, midScreen, SCREEN_HEIGHT, SSD1306_WHITE); // Dibuja el lado derecho
 
-  // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
-  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
-  {
-    Serial.println(F("SSD1306 allocation failed"));
-    for (;;)
-      ; // Don't proceed, loop forever
-  }
+    // Muestra el marco en la pantalla
+    display.display();
 
 if ( xSemaforo_Pantalla == NULL )  // Confirma que el semáforo del puerto serial aún no se ha creado.
   {
@@ -56,21 +53,20 @@ if ( xSemaforo_Pantalla == NULL )  // Confirma que el semáforo del puerto seria
       , "Rueda"
       ,4096
       ,NULL// Stack siz,
-      ,4
+      ,3
       ,NULL // Priority
-      ,0);
+      ,1);
   xTaskCreatePinnedToCore(
     TaskCuadrado
     ,"Cuadrado"
     , 4096
     ,NULL
-    ,5
+    ,6
     ,NULL
     ,0);
 
 }
 
-  
 
 void loop()
 {
@@ -189,7 +185,7 @@ void TaskRueda(void *pvParameters __attribute__((unused)) )
 
   while (1)
   {
-    if ( xSemaphoreTake( xSemaforo_Pantalla, ( TickType_t ) 5 ) == pdTRUE )
+    if ( xSemaphoreTake( xSemaforo_Pantalla, ( TickType_t ) 200 ) == pdTRUE )
     {
     // Draw the wheel image in the left half
     switch (rueda)
@@ -221,12 +217,12 @@ void TaskCuadrado(void *pvParameters __attribute__((unused)) ){
   int rectHeight = 20;
 
   // Coordenadas del rectángulo
-  int x = SCREEN_WIDTH / 2;
-  int y = 0;
+  int x = 85;
+  int y = 20;
   
   (void)pvParameters;
 
-  if ( xSemaphoreTake(xSemaforo_Pantalla, ( TickType_t ) 5 ) == pdTRUE )
+  if ( xSemaphoreTake(xSemaforo_Pantalla, ( TickType_t ) 200 ) == pdTRUE )
     {
   while (1)
   {
