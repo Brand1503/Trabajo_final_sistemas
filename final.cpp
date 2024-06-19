@@ -3,91 +3,46 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Keypad.h>
+#include <BluetoothSerial.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+int ruedaDelay;
+
+TickType_t velocidadDelay;
 
 #define SCREEN_WIDTH 128    // OLED display width, in pixels
 #define SCREEN_HEIGHT 64    // OLED display height, in pixels
 #define OLED_RESET -1       // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
 #define LOGO_HEIGHT 50
 #define LOGO_WIDTH 50
 
+BluetoothSerial SerialBT;
+
+TaskHandle_t id_TaskSecuenciaLedsHandle = NULL;
+TaskHandle_t id_TaskRuedaHandle = NULL;
+TaskHandle_t id_TaskVelocidadHandle = NULL;
+TaskHandle_t id_TaskVelocidadLedHandle = NULL;
+TaskHandle_t id_TaskBluetoothHandle = NULL;
+
 void TaskSecuenciaLeds(void *pvParameters);
 void TaskRueda(void *pvParameters);
+void TaskVelocidad(void *pvParameters);
+void TaskVelocidadLed(void *pvParameters);
+void TaskBluetooth(void *pvParameters);
 
 void setup()
 {
+  Serial.begin(115200);
+  SerialBT.begin("ESP32_LED_Display_Control"); // Nombre del dispositivo Bluetooth
+  Serial.println("El dispositivo está listo para emparejarse.");
+  // Initial delay value
+  velocidadDelay = 300 / portTICK_PERIOD_MS;
 
-  xTaskCreate(
-      TaskRueda
-      , "Rueda"
-      ,4096
-      ,NULL// Stack siz,
-      ,4
-      ,NULL // Priority
-      );
-
-  // Now the task scheduler, which takes over control of scheduling individual tasks, is automatically started.
-  xTaskCreate(
-      TaskSecuenciaLeds
-      , "mi secuencia leds"
-      , 1024 // Stack size
-      ,NULL
-      , 3 // Priority
-      ,NULL);
-  // Now the task scheduler, which takes over control of scheduling individual tasks, is automatically started.
-}
-
-void loop()
-{
-  // Empty. Things are done in Tasks.
-}
-
-/*--------------------------------------------------*/
-/*---------------------- Tasks ---------------------*/
-/*--------------------------------------------------*/
-
-void TaskSecuenciaLeds(void *pvParameters)
-{
-  (void)pvParameters;
-  int retardo = 50;
-  int posicion = 0;
-  int leds[] = {19, 18, 5, 17, 16, 4};
-  int k;
-
-  for (k = 0; k < 6; ++k)
-  {
-    pinMode(leds[k], OUTPUT);
-  }
-  digitalWrite(leds[posicion], HIGH);
-  digitalWrite(leds[posicion + 1], HIGH);
-  while (1)
-  {
-    for (k = 0; k < 2; ++k)
-    {
-      digitalWrite(leds[posicion], HIGH);
-      digitalWrite(leds[posicion + 1], HIGH);
-      vTaskDelay(retardo);
-      digitalWrite(leds[posicion], LOW);
-      digitalWrite(leds[posicion + 1], HIGH);
-      vTaskDelay(retardo);
-      digitalWrite(leds[posicion], HIGH);
-      digitalWrite(leds[posicion + 1], LOW);
-      vTaskDelay(retardo);
-      digitalWrite(leds[posicion], LOW);
-      digitalWrite(leds[posicion + 1], LOW);
-    }
-    posicion++;
-    if (posicion > 4)
-      posicion = 0;
-    vTaskDelay(200);
-  }
-}
-
-void TaskRueda(void *pvParameters)
-{
-  (void)pvParameters;
-  Serial.begin(9600);
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
   {
@@ -95,8 +50,113 @@ void TaskRueda(void *pvParameters)
     for (;;)
       ; // Don't proceed, loop forever
   }
+  display.display();
+  vTaskDelay(2000 / portTICK_PERIOD_MS);
+  display.clearDisplay();
 
+  xTaskCreatePinnedToCore(
+      TaskRueda
+      , "Rueda"
+      ,4096
+      ,NULL// Stack siz,
+      ,4
+      ,&id_TaskRuedaHandle // Priority
+      ,0);
 
+  // Now the task scheduler, which takes over control of scheduling individual tasks, is automatically started.
+  xTaskCreatePinnedToCore(
+      TaskSecuenciaLeds,
+      "mi secuencia leds",
+      1024, // Stack size
+      NULL,
+      3, // Priority
+      &id_TaskSecuenciaLedsHandle,
+      0
+  );
+
+  xTaskCreatePinnedToCore(
+      TaskVelocidadLed,
+      "Velocidad Leds",
+      4096,
+      NULL,
+      6,
+      &id_TaskVelocidadLedHandle,
+      0
+  );
+  // Now the task scheduler, which takes over control of scheduling individual tasks, is automatically started.
+
+  xTaskCreatePinnedToCore(
+    TaskVelocidad
+    ,"Velocidad Rueda"
+    ,4096
+    ,NULL
+    ,5
+    ,&id_TaskVelocidadHandle
+    ,1
+  );
+  xTaskCreatePinnedToCore(
+    TaskBluetooth
+  , "TaskBluetooth"
+  , 2048
+  , NULL
+  , 10
+  , &id_TaskBluetoothHandle
+  , 1);
+
+}
+
+void loop()
+{
+  // Empty. Things are done in Tasks.
+}
+
+void TaskSecuenciaLeds(void *pvParameters) {
+  (void)pvParameters;
+  int posicion = 0;
+  int leds[] = {19, 18, 5, 17, 16, 4};
+  int k;
+
+  for (k = 0; k < 6; ++k) {
+    pinMode(leds[k], OUTPUT);
+  }
+
+  while (1) {
+    for (k = 0; k < 2; ++k) {
+      digitalWrite(leds[posicion], HIGH);
+      digitalWrite(leds[posicion + 1], HIGH);
+      vTaskDelay(velocidadDelay);
+      digitalWrite(leds[posicion], LOW);
+      digitalWrite(leds[posicion + 1], HIGH);
+      vTaskDelay(velocidadDelay);
+      digitalWrite(leds[posicion], HIGH);
+      digitalWrite(leds[posicion + 1], LOW);
+      vTaskDelay(velocidadDelay);
+      digitalWrite(leds[posicion], LOW);
+      digitalWrite(leds[posicion + 1], LOW);
+    }
+    posicion++;
+    if (posicion > 4) {
+      posicion = 0;
+    }
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+  }
+}
+
+void TaskVelocidadLed(void *pvParameters) {
+  (void) pvParameters;
+  int sensorValue;
+  
+  for(;;) {
+    sensorValue = analogRead(39);
+    velocidadDelay = (sensorValue * 3 + 100) / portTICK_PERIOD_MS;
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+  }
+}
+
+void TaskRueda(void *pvParameters)
+{
+  (void)pvParameters;
+  
   uint8_t rueda = 0;
   // 'wheel1', 50x50px
   const unsigned char epd_bitmap_wheel1[] PROGMEM = {
@@ -229,6 +289,91 @@ void TaskRueda(void *pvParameters)
       break;
     }
     display.display();
-    vTaskDelay(450); // puedo controlar la velocidad de la rueda esto debo cambiar con el teclado
+    vTaskDelay(ruedaDelay); // puedo controlar la velocidad de la rueda esto debo cambiar con el teclado
+  }
+}
+
+void TaskVelocidad(void *pvParameters){
+  (void)pvParameters;
+
+  const byte ROWS = 4;
+  const byte COLS = 4;
+  char keys[ROWS][COLS] = {
+    {'1', '2', '3', 'A'},
+    {'4', '5', '6', 'B'},
+    {'7', '8', '9', 'C'},
+    {'*', '0', '#', 'D'}};
+  byte rowPins[ROWS] = {33, 25, 26, 27}; // Filas
+  byte colPins[COLS] = {14, 12, 13, 23}; // Columnas
+
+  Keypad keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+
+  while (1)
+  {
+   char key = keypad.getKey();
+    if (key != NO_KEY) {
+        switch (key) {
+        case '1':
+            ruedaDelay = 10;
+            break;
+        case '2':
+            ruedaDelay = 50;
+            break;
+        case '3':
+            ruedaDelay = 100;
+            break;    
+        case '4':
+            ruedaDelay = 150;
+            break;
+        case '5':
+            ruedaDelay = 200;
+            break;
+        case '6':
+            ruedaDelay = 250;
+            break;
+        case '7':
+            ruedaDelay = 300;
+            break;    
+        case '8':
+            ruedaDelay = 350;
+            break;
+        case '9':
+            ruedaDelay = 400;
+            break;
+        default:
+            // Puedes dejar esto vacío o hacer algo aquí si una tecla no válida es presionada
+            break;
+        }
+    }
+    vTaskDelay (50);
+  }
+
+}
+
+void TaskBluetooth(void *pvParameters) {
+  (void) pvParameters;
+  
+  while (true) {
+    if (SerialBT.available()) {
+      char cmd = SerialBT.read();
+      Serial.print("Comando recibido: ");
+      Serial.println(cmd);
+      
+      switch(cmd) {
+        case 's':
+          vTaskSuspend(id_TaskSecuenciaLedsHandle);  // Suspend LED task
+          vTaskSuspend(id_TaskRuedaHandle);  // Suspend display task
+          vTaskSuspend(id_TaskVelocidadHandle);
+          vTaskSuspend(id_TaskVelocidadLedHandle);
+          break;
+        case 'r':
+          vTaskResume(id_TaskSecuenciaLedsHandle);  // Suspend LED task
+          vTaskResume(id_TaskRuedaHandle);  // Suspend display task
+          vTaskResume(id_TaskVelocidadHandle);
+          vTaskResume(id_TaskVelocidadLedHandle);
+          break;
+      }
+    }
+    vTaskDelay(50); // Delay to prevent task from using too much CPU
   }
 }
