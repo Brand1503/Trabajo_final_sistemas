@@ -8,7 +8,15 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+// Se declara un manejador de semáforo mutex que se va a usar para administrar el puerto serie.
+// Se utiliza para garantizar que solo una Tarea acceda a este recurso en cualquier momento.
+SemaphoreHandle_t xSemaforo_Pantalla;
+
 int ruedaDelay;
+  // Coordenadas del rectángulo
+int x = 85;
+int y = 20;
+
 
 TickType_t velocidadDelay;
 
@@ -28,12 +36,14 @@ TaskHandle_t id_TaskRuedaHandle = NULL;
 TaskHandle_t id_TaskVelocidadHandle = NULL;
 TaskHandle_t id_TaskVelocidadLedHandle = NULL;
 TaskHandle_t id_TaskBluetoothHandle = NULL;
+TaskHandle_t id_TaskCuadradoHandle = NULL;
 
 void TaskSecuenciaLeds(void *pvParameters);
 void TaskRueda(void *pvParameters);
 void TaskVelocidad(void *pvParameters);
 void TaskVelocidadLed(void *pvParameters);
 void TaskBluetooth(void *pvParameters);
+void TaskCuadrado(void *pvParameters);
 
 void setup()
 {
@@ -54,14 +64,35 @@ void setup()
   vTaskDelay(2000 / portTICK_PERIOD_MS);
   display.clearDisplay();
 
+   int midScreen = SCREEN_WIDTH / 2;
+    display.drawRect(0, 0, midScreen, SCREEN_HEIGHT, SSD1306_WHITE);         // Left half
+    display.drawRect(midScreen, 0, midScreen, SCREEN_HEIGHT, SSD1306_WHITE); // Right half
+
+  if ( xSemaforo_Pantalla == NULL )  // Confirma que el semáforo del puerto serial aún no se ha creado.
+  {
+    xSemaforo_Pantalla = xSemaphoreCreateMutex();  // Se crea un semáforo mutex que se usa para administrar el puerto serial
+    if ( ( xSemaforo_Pantalla ) != NULL )
+      xSemaphoreGive( ( xSemaforo_Pantalla) );  // Hace que el puerto serie esté disponible para su uso, "Dando" el semáforo.
+  }
+
+
   xTaskCreatePinnedToCore(
       TaskRueda
       , "Rueda"
-      ,4096
+      ,8192
       ,NULL// Stack siz,
-      ,4
+      ,7
       ,&id_TaskRuedaHandle // Priority
-      ,0);
+      ,1);
+
+  xTaskCreatePinnedToCore(
+    TaskCuadrado
+    ,"Cuadrado"
+    , 8192
+    ,NULL
+    ,7
+    ,&id_TaskCuadradoHandle
+    ,1);    
 
   // Now the task scheduler, which takes over control of scheduling individual tasks, is automatically started.
   xTaskCreatePinnedToCore(
@@ -264,33 +295,51 @@ void TaskRueda(void *pvParameters)
       epd_bitmap_wheel4};
 
   while (1)
-  {
+  { if (xSemaphoreTake(xSemaforo_Pantalla, portMAX_DELAY) == pdTRUE){
+
+  
     display.clearDisplay();
 
-    // Draw the frame
+  // Draw the frame
     int midScreen = SCREEN_WIDTH / 2;
     display.drawRect(0, 0, midScreen, SCREEN_HEIGHT, SSD1306_WHITE);         // Left half
     display.drawRect(midScreen, 0, midScreen, SCREEN_HEIGHT, SSD1306_WHITE); // Right half
 
-    // Draw the wheel image in the left half
-    switch (rueda)
-    {
-    case 0:
-      display.drawBitmap(7, (SCREEN_HEIGHT - LOGO_HEIGHT) / 2, epd_bitmap_wheel1, LOGO_WIDTH, LOGO_HEIGHT, SSD1306_WHITE);
-      rueda = 1;
-      break;
-    case 1:
-      display.drawBitmap(7, (SCREEN_HEIGHT - LOGO_HEIGHT) / 2, epd_bitmap_wheel2, LOGO_WIDTH, LOGO_HEIGHT, SSD1306_WHITE);
-      rueda = 2;
-      break;
-    case 2:
-      display.drawBitmap(7, (SCREEN_HEIGHT - LOGO_HEIGHT) / 2, epd_bitmap_wheel3, LOGO_WIDTH, LOGO_HEIGHT, SSD1306_WHITE);
-      rueda = 0;
-      break;
-    }
+     // Dibuja la rueda
+    display.drawBitmap(7, 7, epd_bitmap_allArray[rueda], 50, 50, SSD1306_WHITE);
     display.display();
-    vTaskDelay(ruedaDelay); // puedo controlar la velocidad de la rueda esto debo cambiar con el teclado
+
+    rueda = (rueda + 1) % 3;  // Alterna entre los tres bitmaps de la rueda
+
+   xSemaphoreGive( xSemaforo_Pantalla);
   }
+    vTaskDelay(ruedaDelay ); // Espera antes de actualizar la rueda
+  }
+}
+
+void TaskCuadrado(void *pvParameters __attribute__((unused)) ){
+  
+  int rectWidth = 20;
+  int rectHeight = 20;
+
+  
+  while (1)
+  { if ( xSemaphoreTake(xSemaforo_Pantalla, ( xSemaforo_Pantalla, portMAX_DELAY) == pdTRUE))
+    {
+  // Rellenar de afuera hacia adentro
+  for(int i = 0; i <= rectWidth / 2; i++) {
+    display.drawRect(x + i, y + i, rectWidth - 2 * i, rectHeight - 2 * i, SSD1306_WHITE);
+    display.display();
+  }
+  // Vaciar de afuera hacia adentro
+  for(int i = 0; i <= rectWidth / 2; i++) {
+    display.drawRect(x + i, y + i, rectWidth - 2 * i, rectHeight - 2 * i, SSD1306_BLACK);
+    display.display();
+  }
+  xSemaphoreGive( xSemaforo_Pantalla);
+}
+ vTaskDelay(100);
+}  
 }
 
 void TaskVelocidad(void *pvParameters){
@@ -365,13 +414,31 @@ void TaskBluetooth(void *pvParameters) {
           vTaskSuspend(id_TaskRuedaHandle);  // Suspend display task
           vTaskSuspend(id_TaskVelocidadHandle);
           vTaskSuspend(id_TaskVelocidadLedHandle);
+          vTaskSuspend(id_TaskCuadradoHandle);
           break;
         case 'r':
           vTaskResume(id_TaskSecuenciaLedsHandle);  // Suspend LED task
           vTaskResume(id_TaskRuedaHandle);  // Suspend display task
           vTaskResume(id_TaskVelocidadHandle);
           vTaskResume(id_TaskVelocidadLedHandle);
+          vTaskResume(id_TaskCuadradoHandle);
           break;
+        case 'a':
+        // Mover hacia la izquierda
+        x--;
+        break;
+       case 'b':
+        // Mover hacia arriba
+        y--;
+        break;
+       case 'd':
+        // Mover hacia la derecha
+        x++;
+        break;
+       case 'i':
+        // Mover hacia abajo
+        y++;
+        break;
       }
     }
     vTaskDelay(50); // Delay to prevent task from using too much CPU
